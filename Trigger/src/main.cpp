@@ -1,3 +1,4 @@
+#include "xport.hpp"
 #include "ESP8266TimerInterrupt.h"
 #include "ESP8266_ISR_Timer.h"
 
@@ -6,180 +7,40 @@
 #include <Wire.h>              // i2C 통신을 위한 라이브러리
 #include <LiquidCrystal_I2C.h> // LCD 2004 I2C용 라이브러리
 
-#pragma region ISR
-
 #define USING_TIM_DIV1 false
 #define USING_TIM_DIV16 false
 #define USING_TIM_DIV256 true
 
 ESP8266Timer ITimer;
 ESP8266_ISR_Timer ISR_Timer;
-// ESP8266_ISR_Timerac ISR_timer;
 
-static uint8 pins[] = {5, 4, 0, 2, 14, 12, 13}; // pin D1~D7
+static uint8 pins[] = {4, 0, 2, 14, 12, 13}; // pin D1~D7
+XBus xbus(pins);
+int GCount = 1000000;
+LiquidCrystal_I2C lcd(0x3F, 20, 4);
 
-class Xport
-{
-public:
-  Xport(float FPS, float DutyRatio, long count)
-  {
-    int timePeriodMs = 1000 / FPS;
-    this->T1 = round(timePeriodMs * (1 - DutyRatio));
-    this->T2 = timePeriodMs - T1;
-    this->RemainMs = T1;
-    this->isOn = false;
-    this->count = count;
-    this->countMax = count;
-    this->fps = FPS;
-  }
-  long T1;
-  long T2;
-  float fps;
-
-  long RemainMs;
-  bool isOn;
-  long count;
-  long countMax;
-
-  bool ExternTrigger;
-  bool Power;
-};
-
-class XBus
-{
-public:
-  long minRemainTime;
-  std::vector<Xport> Xports;
-
-  void addXport(float FPS, float DutyRatio, long count = -1)
-  {
-    Xports.push_back(Xport(FPS, DutyRatio, count));
-  }
-
-  void addXport_T2(float FPS, long T2Time, long count = -1)
-  {
-    long timePeriodMs = round(1000.0 / FPS);
-    long T1 = timePeriodMs - T2Time;
-    float DutyRatio = 1 - (float)T1 / timePeriodMs;
-    Xports.push_back(Xport(FPS, DutyRatio, count));
-  }
-
-  void updateXport(int index, float FPS, float DutyRatio, long count = -1)
-  {
-    Xports[index] = Xport(FPS, DutyRatio, count);
-  }
-
-  void updateXport_T2(int index, float FPS, long T2Time, long count = -1, bool externTrigger = false, bool power = false)
-  {
-    long timePeriodMs = round(1000.0 / FPS);
-    long T1 = timePeriodMs - T2Time;
-    float DutyRatio = 1 - (float)T1 / timePeriodMs;
-    Xports[index] = Xport(FPS, DutyRatio, count);
-    Xports[index].ExternTrigger = externTrigger;
-    Xports[index].Power = power;
-  }
-
-  void updateMinRemainTime()
-  {
-    long temp = __LONG_MAX__;
-    for (const Xport &xport : Xports)
-    {
-      if (xport.RemainMs < temp)
-      {
-        temp = xport.RemainMs;
-      }
-    }
-    minRemainTime = temp;
-  }
-
-  void check()
-  {
-    for (int i = 0; i < Xports.size(); i++)
-    {
-      Xport &xport = Xports[i];
-      if (xport.count == 0)
-      { // 카운트가 0이면 무시
-        continue;
-      }
-      if (xport.RemainMs - minRemainTime <= 0)
-      {
-        if (xport.isOn)
-        {
-          xport.isOn = false;
-          xport.RemainMs = xport.T1;
-          digitalWrite(pins[i], LOW);
-        }
-        else
-        {
-          xport.isOn = true;
-          xport.RemainMs = xport.T2;
-          digitalWrite(pins[i], HIGH);
-
-          if (xport.count > 0)
-          { //-1이면 무한반복, 0이상이면 카운트 감소
-            xport.count--;
-            /* 0번 채널의 끝나는 시간을 millis로 출력
-            if(i==0 && xport.count==0){
-              Serial.println("");
-              Serial.print(F("Time: ")); Serial.print(millis());
-
-            }
-            */
-          }
-        }
-      }
-      else
-      {
-        xport.RemainMs -= minRemainTime;
-      }
-    }
-  }
-};
-XBus xbus;
+// **************************************************
+// **                      ISR
+// **************************************************
 
 void ISR()
 {
-  xbus.check();
-  xbus.updateMinRemainTime();
-  ISR_Timer.setTimeout(xbus.minRemainTime, ISR);
+  // xbus.check();
+  // xbus.updateMinRemainTime();
+  // ISR_Timer.setTimeout(xbus.minRemainTime, ISR);
+
+  // ISR_Timer.setTimeout(10, ISR);
 }
 
-void IRAM_ATTR TimerHandler()
+void IRAM_ATTR TimerHandler() // fixed basic timer
 {
-  ISR_Timer.run();
+  GCount++;
+  // ISR_Timer.run();
 }
 
-#pragma endregion
-
-#pragma region WEB
-LiquidCrystal_I2C lcd(0x3F, 20, 4);
 const char *ssid = "DIV_1_2G";
 const char *password = "2-142014";
 WiFiServer server(80);
-
-#define btnRIGHT 0
-#define btnUP 1
-#define btnDOWN 2
-#define btnLEFT 3
-#define btnSELECT 4
-#define btnNONE 5
-
-int btnNum(int value)
-{
-  if (value > 1400)
-    return btnNONE;
-  if (value < 100)
-    return btnRIGHT;
-  if (value < 400)
-    return btnUP;
-  if (value < 800)
-    return btnDOWN;
-  if (value < 1100)
-    return btnLEFT;
-  if (value < 1300)
-    return btnSELECT;
-  return btnNONE;
-}
 
 String header;
 
@@ -197,36 +58,33 @@ const long timeoutTime = 2000;
 
 void setup()
 {
-#pragma region ISR
-  Serial.begin(115200);
 
-  pinMode(pins[0], OUTPUT);
-  pinMode(pins[1], OUTPUT);
-  pinMode(pins[2], OUTPUT);
-  pinMode(pins[3], OUTPUT);
+  // pinMode(pins[0], OUTPUT);
+  // pinMode(pins[1], OUTPUT);
+  // pinMode(pins[2], OUTPUT);
+  // pinMode(pins[3], OUTPUT);
 
-  xbus.addXport_T2(10, 1, 1);
-  xbus.addXport_T2(10, 1, 1);
-  xbus.addXport_T2(10, 1, 1);
-  xbus.addXport_T2(10, 1, 1);
+  // xbus.addXPort_T2(10, 1, 1);
+  // xbus.addXPort_T2(10, 1, 1);
+  // xbus.addXPort_T2(10, 1, 1);
+  // xbus.addXPort_T2(10, 1, 1);
 
-  xbus.updateMinRemainTime();
+  // xbus.updateMinRemainTime();
 
   ITimer.attachInterruptInterval(1000, TimerHandler);
-  ISR_Timer.setTimeout(xbus.minRemainTime, ISR);
+  // ISR_Timer.setTimeout(1000,ISR);
 
-#pragma endregion
-
-#pragma region WEB
-  // ESP UNO Bug 로 반드시 해주어야 한다.
-  // pinMode(2, OUTPUT);
-  // digitalWrite(2, LOW);
-  // lcd.begin(20, 4); // 16자 2행
-  Wire.begin(pins[5], pins[6]);
+  /*
+   * WIFI / LCD Setup
+   */
+  Serial.begin(115200);
+  Wire.begin(12, 13);
   lcd.init();
   lcd.backlight();
   lcd.setCursor(0, 0);
-  lcd.print("WAIT WIFI2- ");
+  lcd.print("TriGen V0.01");
+  lcd.setCursor(0, 3);
+  lcd.print("WIFI");
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -237,23 +95,29 @@ void setup()
   Serial.println("WiFi connected.");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-  lcd.setCursor(0, 3);
-  lcd.print(WiFi.localIP());
-  server.begin();
-  for (int i = 0; i < 10; i++)
   {
     lcd.setCursor(0, 0);
-    lcd.print(i);
+    lcd.print("TriGen V0.01");
+    lcd.setCursor(0, 3);
+    lcd.print("                    ");
+    lcd.setCursor(0, 3);
+    lcd.print(WiFi.localIP());
   }
 
-  pinMode(pins[5], OUTPUT);
-  pinMode(pins[6], OUTPUT);
+  server.begin();
+  // pinMode(pins[5], OUTPUT);
+  // pinMode(pins[6], OUTPUT);
 
-#pragma endregion
+  //  SR_Timer.setTimeout(100, ISR);
 }
 
 void loop()
 {
+  lcd.setCursor(0, 1);
+  lcd.print(GCount);
+  delay(100);
+  //  Serial.print(GCount);
+  //  Serial.print(" ");
   WiFiClient client = server.available(); // Listen for incoming clients
   if (client)
   { // If a new client connects,
@@ -286,81 +150,89 @@ void loop()
               Serial.println("GET /set");
               if (header.indexOf("data=") >= 0)
               {
-              // 6개의 column을 가진 데이터를 받아와서 처리
-              int startIndex = header.indexOf("data=") + 5;
+                // 6개의 column을 가진 데이터를 받아와서 처리
+                int startIndex = header.indexOf("data=") + 5;
 
-              int xportIndex = 0;
-              int fpsValue = 0;
-              int t2Time = 0;
-              int counterValue = 0;
-              bool externTrigger = false;
-              bool power = false;
+                int xportIndex = 0;
+                int fpsValue = 0;
+                int t2Time = 0;
+                int counterValue = 0;
+                bool externTrigger = false;
+                bool power = false;
 
-              if (startIndex > 0)
-              {
-                for (int i = 0; i < 6; i++)
+                if (startIndex > 0)
                 {
-                  int endIndex = header.indexOf("%2C", startIndex);
-                  if (endIndex > 0)
+                  for (int i = 0; i < 6; i++)
                   {
-                    String value = header.substring(startIndex, endIndex);
-                    switch (i)
+                    int endIndex = header.indexOf("%2C", startIndex);
+                    if (endIndex > 0)
                     {
-                    case 0:
-                      xportIndex = value.toInt();
-                      break;
-                    case 1:
-                      fpsValue = value.toInt();
-                      break;
-                    case 2:
-                      t2Time = value.toInt();
-                      break;
-                    case 3:
-                      counterValue = value.toInt();
-                      break;
-                    case 4:
-                      if(value.toInt() == 0){
-                        externTrigger = false;
+                      String value = header.substring(startIndex, endIndex);
+                      switch (i)
+                      {
+                      case 0:
+                        xportIndex = value.toInt();
+                        break;
+                      case 1:
+                        fpsValue = value.toInt();
+                        break;
+                      case 2:
+                        t2Time = value.toInt();
+                        break;
+                      case 3:
+                        counterValue = value.toInt();
+                        break;
+                      case 4:
+                        if (value.toInt() == 0)
+                        {
+                          externTrigger = false;
+                        }
+                        else
+                        {
+                          externTrigger = true;
+                        }
+                        break;
+                      case 5:
+                        if (value.toInt() == 0)
+                        {
+                          power = false;
+                        }
+                        else
+                        {
+                          power = true;
+                        }
+                        break;
                       }
-                      else{
-                        externTrigger = true;
-                      }
-                      break;
-                    case 5:
-                      if(value.toInt() == 0){
-                        power = false;
-                      }
-                      else{
-                        power = true;
-                      }
-                      break;
+                      startIndex = endIndex + 3;
                     }
-                    startIndex = endIndex + 3;
                   }
-                }
 
-                xbus.updateXport_T2(xportIndex - 1, fpsValue, t2Time, counterValue, externTrigger, power);
-            }
+                  //  xbus.updateXPort_T2(xportIndex - 1, fpsValue, t2Time, counterValue, externTrigger, power);
+                }
               }
             }
-
-      
 
             // Display the HTML web page
             client.println("<!DOCTYPE html><html>");
             client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
             client.println("<link rel=\"icon\" href=\"data:,\"></head>");
-            
-            client.println("<body><a href=\"http://" + WiFi.localIP().toString() + "\" style=\"text-decoration: none; color: inherit;\"><h1>DIV FPS Controller</h1></a>");
 
+            client.println("<body><a href=\"http://" + WiFi.localIP().toString() + "\" style=\"text-decoration: none; color: inherit;\"><h1 class='red'><img src='http://www.dongiltech.co.kr/images/common/logo.png' alt='DIT'>   TRIGGER GENERATOR V0.01</h1></a>");
 
-            //h1 redirect
-            //client.println("<body><a href=" + WiFi.localIP().toString() + " <style=\"text-decoration: none; color: inherit;\"><h1>DIV FPS Controller</h1></a>");
+           
+
+            // h1 redirect
+            // client.println("<body><a href=" + WiFi.localIP().toString() + " <style=\"text-decoration: none; color: inherit;\"><h1>DIV FPS Controller</h1></a>");
 
             client.println("<style>");
-            client.println("table { border-collapse: collapse; width: 100%; }");
-            client.println("th, td { border: 1px solid #dddddd; text-align: left; padding: 8px; }");
+            client.println("table { border-collapse: collapse;   padding: 10px; margin: 15px;}");
+            client.println(".red { color: #E03C32; font-size:40px; font-weight: bold; padding: 10px; margin: 10px;}");
+            client.println(".xark::before { content: '\\2713'; margin-right: 0.5em; margin-left:20px}");
+            client.println("th, td { border: 1px solid #E03C32; text-align: right; padding: 7px; width:150px;}");
             client.println("</style>");
+
+             client.println("<h4 class='xark'>4 Channel Trigger Generator</h4> <h4 class='xark' >FPS 0.1 ~ 200 FPS (signal)</h4>");
+            client.println("<h4 class='xark' >GCount=" + String(GCount) + "</h4>");
 
             client.println("<table>");
             // Camera FPS Duration DownCount ExternTrigger Power
@@ -368,19 +240,21 @@ void loop()
             for (int i = 0; i < NUM_XPORT; ++i)
             {
               client.println("<tr>");
-              client.println("<td>" + String(i + 1) + "</td><td>" + String(xbus.Xports[i].fps) +
-                             "</td><td>" + String(xbus.Xports[i].T2) +
-                             "</td><td>" + String(xbus.Xports[i].count) + "/" + String(xbus.Xports[i].countMax) +
-                             "</td><td>" + String(xbus.Xports[i].ExternTrigger ? "True" : "False") +
-                             "</td><td>" + String(xbus.Xports[i].Power ? "True" : "False"));
+              client.println("<td>" + String(i + 1) + "</td><td>" + String(xbus.XPorts[i].fps) +
+                             "</td><td>" + String(xbus.XPorts[i].T2) +
+                             "</td><td>" + String(xbus.XPorts[i].count) + "/" + String(xbus.XPorts[i].countMax) +
+                             "</td><td>" + String(xbus.XPorts[i].ExternTrigger ? "True" : "False") +
+                             "</td><td>" + String(xbus.XPorts[i].Power ? "True" : "False"));
             }
             client.println("</table>");
 
-            client.println("<form action='/set' method='GET'>");
+            client.println("<br><form action='/set' method='GET'>");
 
             client.print("Set Camera Data: ");
             client.print("<input type='text' name='data'>");
             client.println("<input type='submit' name = 'submit' value='Set'></form>");
+
+            client.println("<br><img src='http://www.dongiltech.co.kr/uploaded/category/catalog_c54bcaca912987c75e52cfc7b0ef9c780.png' width='600' height='350'/>");
 
             client.println("</body></html>");
             // The HTTP response ends with another blank line
@@ -418,21 +292,21 @@ void loop()
     lcd.print(FPS);
     lcd.print(" Fps");
     key_value = analogRead(2);
-    int btnX = btnNum(key_value);
-    switch (btnX)
-    {
-    case btnUP:
-      FPS++;
-      break;
-    case btnDOWN:
-      FPS--;
-      break;
-    }
-    if (btnX < 5)
-    {
-      lcd.setCursor(0, 1);
-      lcd.print(key_value + 10000000 * (btnX + 1));
-      delay(300);
-    }
+    // //  int btnX = btnNum(key_value);
+    //   // switch (btnX)
+    //   // {
+    //   // case btnUP:
+    //   //   FPS++;
+    //   //   break;
+    //   // case btnDOWN:
+    //   //   FPS--;
+    //   //   break;
+    //   // }
+    //   if (btnX < 5)
+    //   {
+    //     lcd.setCursor(0, 1);
+    //     lcd.print(key_value + 10000000 * (btnX + 1));
+    //     delay(300);
+    //   }
   }
 }
