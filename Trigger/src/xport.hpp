@@ -12,7 +12,7 @@ public:
 
     long RemainMs;
     bool isOn;
-    long count = 100;
+    long count = 0;
     long countMax;
 
     bool ExternTrigger;
@@ -27,6 +27,9 @@ public:
         this->index = index;
         this->pinNumber = pinNumber;
         this->step = 0;
+        this->count = 0;
+        this->T1 = 500;
+        this->T2 = 500;
         pinMode(pinNumber, OUTPUT);
     };
 
@@ -44,22 +47,33 @@ public:
 
     void goStep()
     {
-        if (count == 0)
+        if (count-- <= 0)
         {
+            count = -1;
             return;
         }
+        step++;
+        if (step % 2 == 0)
+        {
+            digitalWrite(pinNumber, HIGH);
+        }
+        else
+        {
+            digitalWrite(pinNumber, LOW);
+        }
+        return;
         switch (step)
         {
         case 0:
             step = 1;
             isOn = true;
-            RemainMs = T2;
+            //  RemainMs = T2;
             digitalWrite(pinNumber, HIGH);
             break;
         case 1:
             step = 0;
             isOn = false;
-            RemainMs = T1;
+            //   RemainMs = T1;
             digitalWrite(pinNumber, LOW);
             if (--count == 0)
             {
@@ -70,7 +84,7 @@ public:
     };
 };
 
-#define MAX_XPORT 4
+#define MAX_XPORT 1
 
 class XBus
 {
@@ -172,8 +186,13 @@ public:
     }
     void run()
     {
-        ageMs++;
-        if (ageMs % 100 == 0)
+        if (ageMs++ % 20 == 0)
+        {
+           XPorts[0].goStep();
+        }
+
+        return;
+        // if (ageMs++ % 1000 == 0)
         {
             for (int i = 0; i < MAX_XPORT; i++)
             {
@@ -182,3 +201,4 @@ public:
             }
         }
     };
+};

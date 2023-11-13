@@ -14,7 +14,7 @@
 ESP8266Timer ITimer;
 ESP8266_ISR_Timer ISR_Timer;
 
-static uint8 pins[] = {4, 0, 2, 14, 12, 13}; // pin D1~D7
+static uint8 pins[] = {4, 0, 2, 14}; // pin D1~D7
 XBus xbus(pins);
 int GCount = 1000000;
 LiquidCrystal_I2C lcd(0x3F, 20, 4);
@@ -47,8 +47,8 @@ String header;
 
 const int NUM_XPORT = 4;
 
-String output26State = "off";
-String output27State = "off";
+// String output26State = "off";
+// String output27State = "off";
 // Current time
 unsigned long currentTime = millis();
 // Previous time
@@ -59,22 +59,6 @@ const long timeoutTime = 2000;
 
 void setup()
 {
-
-  // pinMode(pins[0], OUTPUT);
-  // pinMode(pins[1], OUTPUT);
-  // pinMode(pins[2], OUTPUT);
-  // pinMode(pins[3], OUTPUT);
-
-  // xbus.addXPort_T2(10, 1, 1);
-  // xbus.addXPort_T2(10, 1, 1);
-  // xbus.addXPort_T2(10, 1, 1);
-  // xbus.addXPort_T2(10, 1, 1);
-
-  // xbus.updateMinRemainTime();
-
-  ITimer.attachInterruptInterval(1000, TimerHandler);
-  // ISR_Timer.setTimeout(1000,ISR);
-
   /*
    * WIFI / LCD Setup
    */
@@ -105,17 +89,18 @@ void setup()
     lcd.print(WiFi.localIP());
   }
 
+  // xbus.updateMinRemainTime();
+  ITimer.attachInterruptInterval(1000, TimerHandler);
+  // ISR_Timer.setTimeout(1000,ISR);
   server.begin();
-  // pinMode(pins[5], OUTPUT);
-  // pinMode(pins[6], OUTPUT);
-
-  //  SR_Timer.setTimeout(100, ISR);
 }
 
 void loop()
 {
   lcd.setCursor(0, 1);
   lcd.print(GCount);
+  lcd.setCursor(10, 1);
+  lcd.print(xbus.XPorts[0].count);
   delay(100);
   //  Serial.print(GCount);
   //  Serial.print(" ");
@@ -146,10 +131,12 @@ void loop()
             client.println();
 
             // "GET set?data=1%2C1%2C1%2C1%2C1%2C1&submit=Set"와 같은 형태로 데이터를 받아와서 처리할 수 있어
-            if (header.indexOf("GET /set") >= 0)
+            if (header.indexOf("GET /set?data=") >= 0)
             {
-              Serial.println("GET /set");
-              if (header.indexOf("data=") >= 0)
+              String sHeader = header.substring(header.indexOf("?data=")+6, header.indexOf("&submit")); // 처음숫자만.
+              Serial.println(sHeader);
+              xbus.XPorts[0].count = sHeader.toInt();
+              if (header.indexOf("data=") >= 0 && false)
               {
                 // 6개의 column을 가진 데이터를 받아와서 처리
                 int startIndex = header.indexOf("data=") + 5;
@@ -239,10 +226,11 @@ void loop()
             client.println("<h4 class='circle' > 현재진행 STEP번호 =" + String(GCount) + "</h4>");
 
             const String a = "<div class='normal'>"
-                             "FPS 0.1 ~ 200 FPS (signal)<br>"
-                             "초기설정 : AP모드/시리얼을 이용하여, 초기 AP(ssid,passwd)입력가능<br>"
-                             "표준IOT프로토콜 : MQTT 지원, Reset HW Chip <br>"
-                             "웹메뉴얼 연결 및 한글설명서 <br> </div>";
+                             "FPS 0.1 ~ 200 FPS : ~ 50FPS (Relay), 50FPS ~ (SSR) <br>"
+                             "초기설정     : 시리얼 또는 AP Mode (ssid,passwd)입력가능<br>"
+                             "IOT프로토콜 : MQTT 지원, NTP 지원, Reset HW Chip , 온습도 연동 "
+                             "<a href='https://github.com/espressif/esp-iot-solution'>IOT 링크</a><br>"
+                             "링크생성    :  웹메뉴얼 연결 및 한글설명서 <br> </div>";
             client.println(a);
 
             client.println("<table>");
