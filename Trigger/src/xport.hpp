@@ -12,7 +12,7 @@ public:
 
     long RemainMs;
     bool isOn;
-    long count;
+    long count = 100;
     long countMax;
 
     bool ExternTrigger;
@@ -77,6 +77,7 @@ class XBus
 public:
     XPort XPorts[MAX_XPORT];
     long minRemainTime;
+    long ageMs = 0;
 
     XBus(uint8 pinNumber[])
     {
@@ -169,4 +170,15 @@ public:
             }
         }
     }
-};
+    void run()
+    {
+        ageMs++;
+        if (ageMs % 100 == 0)
+        {
+            for (int i = 0; i < MAX_XPORT; i++)
+            {
+                XPort port = XPorts[i];
+                port.goStep();
+            }
+        }
+    };

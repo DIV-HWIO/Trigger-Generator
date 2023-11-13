@@ -35,6 +35,7 @@ void ISR()
 void IRAM_ATTR TimerHandler() // fixed basic timer
 {
   GCount++;
+  xbus.run();
   // ISR_Timer.run();
 }
 
@@ -219,32 +220,30 @@ void loop()
 
             client.println("<body><a href=\"http://" + WiFi.localIP().toString() + "\" style=\"text-decoration: none; color: inherit;\"><h1 class='red'><img src='http://www.dongiltech.co.kr/images/common/logo.png' alt='DIT'>   TRIGGER GENERATOR V0.01</h1></a>");
 
-           
-
             // h1 redirect
             // client.println("<body><a href=" + WiFi.localIP().toString() + " <style=\"text-decoration: none; color: inherit;\"><h1>DIV FPS Controller</h1></a>");
-            const String ss =  "<style>"\
-                "table { border-collapse: collapse;   padding: 10px; margin: 15px;}"\
-                ".red { color: #E03C32; font-size:40px; font-weight: bold; padding: 10px; margin: 10px;}"\
-                ".normal {  background-color: aliceblue; width: 800px; line-height: 1.5em; font-family: 'Nanum Gothic', sans-serif; font-size: 14px; padding: 10px; margin: 10px 40px;}"\
-                ".circle::before { content: '\\25CF'; margin-right: 0.5em; margin-left:20px}";
+            const String ss = "<style>"
+                              "table { border-collapse: collapse;   padding: 10px; margin: 15px;}"
+                              ".red { color: #E03C32; font-size:40px; font-weight: bold; padding: 10px; margin: 10px;}"
+                              ".normal {  background-color: aliceblue; width: 800px; line-height: 1.5em; font-family: 'Nanum Gothic', sans-serif; font-size: 14px; padding: 10px; margin: 10px 40px;}"
+                              ".circle::before { content: '\\25CF'; margin-right: 0.5em; margin-left:20px}";
 
-        //    client.println("table { border-collapse: collapse;   padding: 10px; margin: 15px;}");
+            //    client.println("table { border-collapse: collapse;   padding: 10px; margin: 15px;}");
             client.println(ss);
-         //   client.println(".normal {  background-color: aliceblue; width: 800px; font-family: 'Nanum Gothic', sans-serif; font-size: 16px; padding: 10px; margin: 10px;}");
+            //   client.println(".normal {  background-color: aliceblue; width: 800px; font-family: 'Nanum Gothic', sans-serif; font-size: 16px; padding: 10px; margin: 10px;}");
             client.println(".circle::before { content: '\\25CF'; margin-right: 0.5em; margin-left:20px}"); // check 2713 circle 25cf
             client.println("th, td { border: 1px solid #E03C32; text-align: right; padding: 7px; width:150px;}");
             client.println("</style>");
 
-             client.println("<h4 class='circle'>4 Channel Trigger Generator</h4>");
-            client.println("<h4 class='circle' > 현재 진행 스템번호 =" + String(GCount) + "</h4>");
-            
-            const String a = "<div class='normal'>"\
-              "FPS 0.1 ~ 200 FPS (signal)<br>"
-              "초기설정 : AP모드/시리얼을 이용하여, 초기 AP(ssid,passwd)입력가능<br>"\
-              "표준IOT프로토콜 : MQTT 지원, Reset HW Chip <br>"\
-              "웹메뉴얼 연결 및 한글설명서 <br> </div>";
-           client.println(a);
+            client.println("<h4 class='circle'>4 Channel Trigger Generator</h4>");
+            client.println("<h4 class='circle' > 현재진행 STEP번호 =" + String(GCount) + "</h4>");
+
+            const String a = "<div class='normal'>"
+                             "FPS 0.1 ~ 200 FPS (signal)<br>"
+                             "초기설정 : AP모드/시리얼을 이용하여, 초기 AP(ssid,passwd)입력가능<br>"
+                             "표준IOT프로토콜 : MQTT 지원, Reset HW Chip <br>"
+                             "웹메뉴얼 연결 및 한글설명서 <br> </div>";
+            client.println(a);
 
             client.println("<table>");
             // Camera FPS Duration DownCount ExternTrigger Power
